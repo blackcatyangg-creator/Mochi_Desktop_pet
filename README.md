@@ -136,9 +136,9 @@ MIT License
 
 ## 致谢
 
-- 图标设计：[你的设计来源]
-- 灵感来源：[BongoCat](https://bongocat.gjxx.dev/)
+- 图标设计：作者自己
+- 灵感来源：星露谷物语
 
 ---
 
-Made with ❤️ by [你的名字]
+Made with ❤️ by Blackcat.yang
