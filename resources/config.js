@@ -2,7 +2,8 @@
 const AI_CONFIG = {
     // 使用阿里云百炼平台 - 通义千问 API
     // 注册地址：https://bailian.console.aliyun.com/
-    API_KEY: 'sk-f7b0ea08cdaa4b5cae556335eb0a2b1e', // 阿里云百炼 API Key
+    // ⚠️ 重要：请在此填入你的 API Key，或者通过设置界面配置
+    API_KEY: '', // 用户需要自行配置 API Key
     API_URL: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
     MODEL: 'qwen-turbo', // 可选: qwen-turbo, qwen-plus, qwen-max
     
