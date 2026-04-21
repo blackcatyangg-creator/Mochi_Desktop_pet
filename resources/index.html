@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>桌面宠物</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+            background: transparent;
+            user-select: none;
+        }
+
+        #pet-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 64px;
+            height: 64px;
+            cursor: grab;
+            z-index: 9999;
+            transition: transform 0.1s;
+        }
+
+        #pet-container:active {
+            cursor: grabbing;
+        }
+
+        #pet-container.dragging {
+            opacity: 0.8;
+        }
+
+        .pet-sprite {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        #chat-bubble {
+            position: fixed;
+            width: 280px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            padding: 15px;
+            display: none;
+            z-index: 10000;
+            animation: popIn 0.3s ease-out;
+        }
+
+        @keyframes popIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8) translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        #chat-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            right: 30px;
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 10px solid #764ba2;
+        }
+
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .chat-title {
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .chat-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .chat-close:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .chat-messages {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            padding-right: 5px;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+        }
+
+        .message {
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            margin-left: 20px;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.pet {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            margin-right: 20px;
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 15px;
+            background: rgba(255,255,255,0.9);
+            font-size: 12px;
+            outline: none;
+        }
+
+        .chat-send {
+            background: rgba(255,255,255,0.9);
+            border: none;
+            color: #764ba2;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .chat-send:hover {
+            background: white;
+            transform: scale(1.1);
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 8px 12px;
+            color: rgba(255,255,255,0.7);
+            font-size: 12px;
+            font-style: italic;
+        }
+
+        .typing-indicator.show {
+            display: block;
+        }
+
+        .pet-status {
+            position: absolute;
+            top: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .pet-status.show {
+            opacity: 1;
+        }
+
+        .emotion-indicator {
+            position: absolute;
+            top: -16px;
+            right: -4px;
+            font-size: 16px;
+            animation: bounce 1s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .idle-animation {
+            animation: idle 2s ease-in-out infinite;
+        }
+
+        @keyframes idle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-3px); }
+        }
+
+        .walking-animation {
+            animation: walk 0.5s ease-in-out infinite;
+        }
+
+        @keyframes walk {
+            0%, 100% { transform: translateY(0) scaleX(1); }
+            25% { transform: translateY(-2px) scaleX(0.95); }
+            50% { transform: translateY(0) scaleX(1); }
+            75% { transform: translateY(-2px) scaleX(0.95); }
+        }
+
+        .sleeping-animation {
+            animation: sleep 3s ease-in-out infinite;
+        }
+
+        @keyframes sleep {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(2px) rotate(2deg); }
+        }
+
+        .eating-animation {
+            animation: eat 0.8s ease-in-out infinite;
+        }
+
+        @keyframes eat {
+            0%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(0.9) translateY(2px); }
+        }
+
+        .playing-animation {
+            animation: play 0.6s ease-in-out infinite;
+        }
+
+        @keyframes play {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            25% { transform: translateY(-5px) rotate(-5deg); }
+            75% { transform: translateY(-5px) rotate(5deg); }
+        }
+
+        .click-animation {
+            animation: click 0.3s ease-out;
+        }
+
+        @keyframes click {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+        }
+
+        /* 伸懒腰动画 */
+        .stretching-animation {
+            animation: stretch 2s ease-in-out;
+        }
+
+        @keyframes stretch {
+            0%, 100% { transform: scaleY(1) scaleX(1); }
+            25% { transform: scaleY(1.1) scaleX(0.9); }
+            50% { transform: scaleY(1.15) scaleX(0.85) translateY(-5px); }
+            75% { transform: scaleY(1.05) scaleX(0.95); }
+        }
+
+        /* 抖动动画 */
+        .shaking-animation {
+            animation: shake 1s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+            20%, 40%, 60%, 80% { transform: translateX(3px); }
+        }
+
+        /* 睡觉时的遮罩 */
+        .sleeping-overlay {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            font-size: 20px;
+            animation: float 2s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); opacity: 0.8; }
+            50% { transform: translateY(-5px); opacity: 1; }
+        }
+
+        /* 睡觉图标 */
+        #sleep-icon {
+            position: absolute;
+            top: -25px;
+            right: -5px;
+            font-size: 20px;
+            animation: float 2s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        /* 头顶飘动文字 */
+        .float-text {
+            position: absolute;
+            top: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            white-space: nowrap;
+            animation: floatUp 3s ease-out forwards;
+            pointer-events: none;
+            font-weight: bold;
+            z-index: 100;
+        }
+
+        .float-text::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 6px solid #FECFEF;
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 0;
+                transform: translateX(-50%) translateY(10px) scale(0.8);
+            }
+            20% {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0) scale(1);
+            }
+            80% {
+                opacity: 1;
+                transform: translateX(-50%) translateY(-5px) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px) scale(0.9);
+            }
+        }
+
+        /* 换肤面板 - 紫蓝渐变风格 - 带标题栏 */
+        .skin-panel {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            padding: 0;
+            display: none;
+            flex-direction: column;
+            z-index: 10001;
+            min-width: 160px;
+            overflow: hidden;
+        }
+
+        .skin-panel.show {
+            display: flex;
+        }
+
+        .skin-panel-header {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .skin-panel-title {
+            font-size: 12px;
+            color: white;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .skin-panel-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .skin-panel-close:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .skin-panel-content {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .skin-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            font-size: 11px;
+            color: white;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .skin-option:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(5px);
+        }
+
+        .skin-option.active {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .skin-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+        }
+
+        .skin-orange { background: linear-gradient(135deg, #FF8C42 50%, #FFB366 50%); }
+        .skin-black { background: #2C2C2C; }
+        .skin-calico { background: linear-gradient(45deg, #FF8C42 33%, #FFF 33%, #FFF 66%, #2C2C2C 66%); }
+        .skin-tabby { background: repeating-linear-gradient(90deg, #D2691E, #D2691E 3px, #F4A460 3px, #F4A460 6px); }
+        .skin-white { background: #FFF8DC; border: 2px solid #ddd; }
+        .skin-gray { background: linear-gradient(135deg, #808080 50%, #A9A9A9 50%); }
+
+        /* 右键菜单 - 紫蓝渐变风格 - 紧凑型 - 无边框 */
+        .context-menu {
+            position: fixed;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 6px;
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            min-width: 130px;
+        }
+
+        .context-menu.show {
+            display: flex;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            margin: 2px 0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 13px;
+            color: #fff;
+            font-weight: 500;
+            background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.1) 100%);
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .menu-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.4s;
+            pointer-events: none;
+        }
+
+        .menu-item:hover::before {
+            left: 100%;
+        }
+
+        .menu-item span, .menu-item .menu-item-icon {
+            position: relative;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .menu-item:hover {
+            background: linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.15) 100%);
+            transform: translateY(-1px) scale(1.02);
+        }
+
+        .menu-item:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        .menu-item-icon {
+            font-size: 14px;
+            width: 20px;
+            height: 20px;
+            text-align: center;
+            line-height: 20px;
+            background: rgba(255,255,255,0.25);
+            border-radius: 50%;
+        }
+
+        .menu-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 20%, rgba(255,255,255,0.7) 50%, rgba(255,255,255,0.5) 80%, transparent 100%);
+            margin: 4px 6px;
+            border-radius: 1px;
+        }
+
+        /* API设置弹窗 - 紫蓝渐变风格 - 紧凑型 - 无背景遮罩 - 无边框 */
+        .api-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            display: none;
+            justify-content: flex-start;
+            align-items: flex-start;
+            padding: 20px;
+            z-index: 2000;
+            pointer-events: none;
+        }
+
+        .api-modal.show {
+            display: flex;
+        }
+
+        .api-modal-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 12px;
+            width: 260px;
+            max-height: none;
+            overflow: visible;
+            animation: modalPop 0.3s ease-out;
+            position: relative;
+            pointer-events: auto;
+        }
+
+        @keyframes modalPop {
+            0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .api-modal-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 8px;
+            text-align: center;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-right: 0;
+        }
+
+        .api-modal-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            margin-left: 8px;
+        }
+
+        .api-modal-close:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .api-input-group {
+            margin-bottom: 6px;
+        }
+
+        .api-input-group label {
+            display: block;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 2px;
+            font-weight: 500;
+        }
+
+        .api-input-group input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            font-size: 10px;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.95);
+            transition: all 0.2s;
+        }
+
+        .api-input-group input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+        }
+
+        .api-modal-buttons {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .api-btn {
+            flex: 1;
+            padding: 6px;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 600;
+        }
+
+        .api-btn-cancel {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .api-btn-cancel:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .api-btn-save {
+            background: rgba(255, 255, 255, 0.9);
+            color: #764ba2;
+        }
+
+        .api-btn-save:hover {
+            background: white;
+            transform: translateY(-2px);
+        }
+
+        /* 提供商选择按钮 - 紧凑型 - 无边框 */
+        .api-provider-section {
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .api-provider-section label {
+            font-size: 10px;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .provider-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+        }
+
+        .provider-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 4px 2px;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 9px;
+            color: #333;
+        }
+
+        .provider-btn:hover {
+            background: #FFF5F0;
+            transform: translateY(-1px);
+        }
+
+        .provider-btn.active {
+            background: #FFE4D6;
+        }
+
+        .provider-icon {
+            font-size: 14px;
+            margin-bottom: 1px;
+        }
+
+        /* 帮助图标 */
+        .help-icon {
+            cursor: pointer;
+            background: linear-gradient(135deg, #FF8C42, #FF6B6B);
+            color: white;
+            font-size: 9px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 4px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(255, 107, 107, 0.3);
+            transition: all 0.2s;
+        }
+
+        .help-icon:hover {
+            transform: scale(1.1);
+            box-shadow: 0 3px 8px rgba(255, 107, 107, 0.4);
+        }
+
+        /* 输入提示 */
+        .input-hint {
+            font-size: 9px;
+            color: #999;
+            margin-top: 2px;
+        }
+
+        /* 帮助弹窗 */
+        .help-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            display: none;
+            justify-content: flex-start;
+            align-items: flex-start;
+            padding: 20px;
+            z-index: 3000;
+            pointer-events: none;
+        }
+
+        .help-modal.show {
+            display: flex;
+        }
+
+        .help-modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            width: 320px;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: helpModalPop 0.3s ease-out;
+            pointer-events: auto;
+        }
+
+        @keyframes helpModalPop {
+            0% { opacity: 0; transform: scale(0.9) translateY(20px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .help-modal-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .help-modal-title-icon {
+            font-size: 28px;
+        }
+
+        .help-section {
+            margin-bottom: 20px;
+        }
+
+        .help-section-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #FF8C42;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .help-section-content {
+            font-size: 13px;
+            color: #555;
+            line-height: 1.8;
+            padding-left: 20px;
+        }
+
+        .help-section-content p {
+            margin: 8px 0;
+        }
+
+        .help-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: #FF8C42;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 4px 8px;
+            background: #FFF5F0;
+            border-radius: 6px;
+            margin: 4px 0;
+            transition: all 0.2s;
+        }
+
+        .help-link:hover {
+            background: #FF8C42;
+            color: white;
+        }
+
+        .help-steps {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-top: 10px;
+        }
+
+        .help-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+
+        .help-step-num {
+            background: linear-gradient(135deg, #FF8C42, #FF6B6B);
+            color: white;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .help-close-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #FF8C42, #FF6B6B);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: all 0.2s;
+        }
+
+        .help-close-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .help-note {
+            background: #FFF9E6;
+            border-left: 4px solid #FFC107;
+            padding: 12px 16px;
+            border-radius: 0 8px 8px 0;
+            margin: 16px 0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .help-note strong {
+            color: #FF8C42;
+        }
+    </style>
+</head>
+<body>
+    <div id="pet-container" class="idle-animation">
+        <div class="pet-status" id="pet-status">点击和我聊天~</div>
+        <div class="emotion-indicator" id="emotion"></div>
+        
+        <!-- 换肤面板 -->
+        <div class="skin-panel" id="skin-panel">
+            <div class="skin-panel-header">
+                <div class="skin-panel-title">选择毛色</div>
+                <button class="skin-panel-close" onclick="closeSkinPanel()">×</button>
+            </div>
+            <div class="skin-panel-content">
+                <div class="skin-option active" data-skin="orange" onclick="changeSkin('orange')">
+                    <div class="skin-color skin-orange"></div>
+                    <span>小橘猫</span>
+                </div>
+                <div class="skin-option" data-skin="black" onclick="changeSkin('black')">
+                    <div class="skin-color skin-black"></div>
+                    <span>小黑猫</span>
+                </div>
+                <div class="skin-option" data-skin="calico" onclick="changeSkin('calico')">
+                    <div class="skin-color skin-calico"></div>
+                    <span>三花猫</span>
+                </div>
+                <div class="skin-option" data-skin="tabby" onclick="changeSkin('tabby')">
+                    <div class="skin-color skin-tabby"></div>
+                    <span>虎斑猫</span>
+                </div>
+                <div class="skin-option" data-skin="white" onclick="changeSkin('white')">
+                    <div class="skin-color skin-white"></div>
+                    <span>小白猫</span>
+                </div>
+                <div class="skin-option" data-skin="gray" onclick="changeSkin('gray')">
+                    <div class="skin-color skin-gray"></div>
+                    <span>小灰猫</span>
+                </div>
+            </div>
+        </div>
+        
+        <svg class="pet-sprite" id="pet-sprite" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <!-- 蹲坐姿态的像素风猫咪 - 32x32 -->
+            
+            <!-- 尾巴（卷曲） -->
+            <rect class="cat-primary" x="24" y="20" width="4" height="8" fill="#FF8C42"/>
+            <rect class="cat-secondary" x="22" y="24" width="4" height="4" fill="#FF8C42"/>
+            
+            <!-- 身体（三角形/梯形蹲坐） -->
+            <polygon class="cat-primary" points="8,20 24,20 26,28 6,28" fill="#FF8C42"/>
+            <polygon class="cat-belly" points="10,22 22,22 23,26 9,26" fill="#FFB366"/>
+            
+            <!-- 项圈 -->
+            <rect x="8" y="20" width="16" height="2" fill="#E74C3C"/>
+            
+            <!-- 铃铛 -->
+            <rect x="14" y="21" width="4" height="4" fill="#F1C40F"/>
+            <rect x="15" y="23" width="2" height="1" fill="#F39C12"/>
+            
+            <!-- 头部 -->
+            <rect class="cat-primary" x="6" y="6" width="20" height="14" fill="#FF8C42"/>
+            <rect class="cat-face" x="8" y="8" width="16" height="10" fill="#FFB366"/>
+            
+            <!-- 耳朵 -->
+            <rect class="cat-primary" x="6" y="2" width="4" height="6" fill="#FF8C42"/>
+            <rect class="cat-primary" x="22" y="2" width="4" height="6" fill="#FF8C42"/>
+            <rect class="cat-ear-inner" x="7" y="3" width="2" height="3" fill="#FFB366"/>
+            <rect class="cat-ear-inner" x="23" y="3" width="2" height="3" fill="#FFB366"/>
+            
+            <!-- 眼睛 -->
+            <rect x="10" y="11" width="3" height="4" fill="#333"/>
+            <rect x="19" y="11" width="3" height="4" fill="#333"/>
+            <rect x="11" y="12" width="1" height="1" fill="#fff"/>
+            <rect x="20" y="12" width="1" height="1" fill="#fff"/>
+            
+            <!-- 鼻子 -->
+            <rect x="15" y="15" width="2" height="2" fill="#FF6B9D"/>
+            
+            <!-- 嘴巴 -->
+            <rect x="13" y="18" width="2" height="1" fill="#333"/>
+            <rect x="17" y="18" width="2" height="1" fill="#333"/>
+            
+            <!-- 胡须 -->
+            <rect x="4" y="14" width="4" height="1" fill="#333"/>
+            <rect x="4" y="16" width="4" height="1" fill="#333"/>
+            <rect x="24" y="14" width="4" height="1" fill="#333"/>
+            <rect x="24" y="16" width="4" height="1" fill="#333"/>
+            
+            <!-- 前爪（蹲坐时并拢） -->
+            <rect class="cat-paw" x="12" y="26" width="3" height="4" fill="#FF8C42"/>
+            <rect class="cat-paw" x="17" y="26" width="3" height="4" fill="#FF8C42"/>
+            
+            <!-- 后爪（蹲坐时藏在身下） -->
+            <rect class="cat-paw" x="8" y="28" width="4" height="3" fill="#FF8C42"/>
+            <rect class="cat-paw" x="20" y="28" width="4" height="3" fill="#FF8C42"/>
+        </svg>
+    </div>
+
+    <div id="chat-bubble">
+        <div class="chat-header">
+            <span class="chat-title">🐱 Mochi</span>
+            <button class="chat-close" onclick="closeChat()">×</button>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <!-- 首次访问时会自动填充欢迎消息 -->
+        </div>
+        <div class="typing-indicator" id="typing">Mochi 正在思考...</div>
+        <div class="chat-input-area">
+            <input type="text" class="chat-input" id="chat-input" placeholder="输入消息..." maxlength="100">
+            <button class="chat-send" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div class="context-menu" id="context-menu">
+        <div class="menu-item" onclick="menuChat()">
+            <span class="menu-item-icon">💬</span>
+            <span>聊天</span>
+        </div>
+        <div class="menu-item" onclick="menuFeed()">
+            <span class="menu-item-icon">🐟</span>
+            <span>喂食</span>
+        </div>
+        <div class="menu-item" onclick="menuPet()">
+            <span class="menu-item-icon">👋</span>
+            <span>摸摸</span>
+        </div>
+        <div class="menu-divider"></div>
+        <div class="menu-item" onclick="menuChangeSkin()">
+            <span class="menu-item-icon">🎨</span>
+            <span>换肤</span>
+        </div>
+        <div class="menu-divider"></div>
+        <div class="menu-item" onclick="menuApiSettings()">
+            <span class="menu-item-icon">⚙️</span>
+            <span>API设置</span>
+        </div>
+    </div>
+
+    <!-- API设置弹窗 -->
+    <div class="api-modal" id="api-modal">
+        <div class="api-modal-content">
+            <div class="api-modal-title">
+                <span>🔑 API 设置</span>
+                <button class="api-modal-close" onclick="closeApiModal()">×</button>
+            </div>
+            
+            <!-- 快速选择国内模型 -->
+            <div class="api-provider-section">
+                <label style="font-size: 12px; color: #666; margin-bottom: 8px; display: block;">快速选择国内模型：</label>
+                <div class="provider-buttons">
+                    <button class="provider-btn" onclick="selectProvider('qwen')">
+                        <span class="provider-icon">🌟</span>
+                        <span>通义千问</span>
+                    </button>
+                    <button class="provider-btn" onclick="selectProvider('doubao')">
+                        <span class="provider-icon">🎵</span>
+                        <span>豆包</span>
+                    </button>
+                    <button class="provider-btn" onclick="selectProvider('wenxin')">
+                        <span class="provider-icon">💠</span>
+                        <span>文心一言</span>
+                    </button>
+                    <button class="provider-btn" onclick="selectProvider('kimi')">
+                        <span class="provider-icon">🌙</span>
+                        <span>Kimi</span>
+                    </button>
+                    <button class="provider-btn" onclick="selectProvider('hunyuan')">
+                        <span class="provider-icon">🐧</span>
+                        <span>腾讯混元</span>
+                    </button>
+                    <button class="provider-btn" onclick="selectProvider('spark')">
+                        <span class="provider-icon">⚡</span>
+                        <span>讯飞星火</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="api-input-group">
+                <label>API Key <span class="help-icon" onclick="showHelp('apikey')">?</span></label>
+                <input type="text" id="api-key-input" placeholder="输入你的 API Key">
+                <div class="input-hint">从官网获取的密钥，格式如：sk-xxxxx</div>
+            </div>
+            <div class="api-input-group">
+                <label>API URL <span class="help-icon" onclick="showHelp('apiurl')">?</span></label>
+                <input type="text" id="api-url-input" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions">
+                <div class="input-hint">AI服务的接口地址</div>
+            </div>
+            <div class="api-input-group">
+                <label>模型名称 <span class="help-icon" onclick="showHelp('model')">?</span></label>
+                <input type="text" id="api-model-input" placeholder="qwen-turbo">
+                <div class="input-hint">如：qwen-turbo、ep-202xxxxx</div>
+            </div>
+            <div class="api-modal-buttons">
+                <button class="api-btn api-btn-cancel" onclick="closeApiModal()">取消</button>
+                <button class="api-btn api-btn-save" onclick="saveApiSettings()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 帮助弹窗 -->
+    <div class="help-modal" id="help-modal">
+        <div class="help-modal-content">
+            <div class="help-modal-title">
+                <span class="help-modal-title-icon">💡</span>
+                <span id="help-title">使用帮助</span>
+            </div>
+            <div id="help-content">
+                <!-- 动态内容 -->
+            </div>
+            <button class="help-close-btn" onclick="closeHelpModal()">我知道了</button>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="pet.js"></script>
+</body>
+</html>

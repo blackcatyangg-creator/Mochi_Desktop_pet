@@ -1,0 +1,105 @@
+name: Build Mochi Desktop Pet
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyqt5 pyqtwebengine pyinstaller pillow
+    
+    - name: Build macOS app
+      run: |
+        pyinstaller build/Mochi_macOS.spec
+    
+    - name: Create DMG
+      run: |
+        brew install create-dmg
+        create-dmg \
+          --volname "Mochi Desktop Pet" \
+          --window-pos 200 120 \
+          --window-size 600 400 \
+          --icon-size 100 \
+          --app-drop-link 450 185 \
+          "Mochi-macOS.dmg" \
+          "dist/Mochi.app"
+    
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: Mochi-macOS
+        path: Mochi-macOS.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyqt5 pyqtwebengine pyinstaller pillow
+    
+    - name: Build Windows exe
+      run: |
+        pyinstaller build/Mochi_Windows.spec
+    
+    - name: Create ZIP
+      run: |
+        Compress-Archive -Path dist\Mochi.exe -DestinationPath Mochi-Windows.zip
+    
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: Mochi-Windows
+        path: Mochi-Windows.zip
+
+  release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Download macOS artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: Mochi-macOS
+        path: ./
+    
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: Mochi-Windows
+        path: ./
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          Mochi-macOS.dmg
+          Mochi-Windows.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
