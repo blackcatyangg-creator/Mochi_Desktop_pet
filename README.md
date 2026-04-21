@@ -69,19 +69,33 @@ pyinstaller build/Mochi_Windows.spec
 
 打包完成后在 `dist/` 目录找到 `Mochi.exe`。
 
-## 配置 AI 聊天
+## ⚠️ 重要：配置 AI 聊天
 
-1. 右键点击小猫 → API 设置
-2. 选择 AI 提供商（通义千问、豆包等）
-3. 输入 API Key（从对应官网获取）
+**默认情况下 AI 聊天功能未启用**，需要自行配置 API Key 才能使用。
+
+### 配置步骤
+
+1. 右键点击小猫 → **API 设置**
+2. 选择 AI 提供商（通义千问、豆包、Kimi 等）
+3. 输入 API Key（从对应官网获取，**免费额度通常足够日常使用**）
 4. 点击保存
 
-### 获取 API Key
+> 💡 **不配置 API 也能玩**：Mochi 会使用本地预设回复，只是没有 AI 的智能回答
 
-- **通义千问**: [阿里云百炼](https://bailian.console.aliyun.com)
-- **豆包**: [火山引擎](https://console.volcengine.com)
-- **Kimi**: [Moonshot AI](https://platform.moonshot.cn)
-- **文心一言**: [百度千帆](https://qianfan.baidu.com)
+### 获取 API Key（免费）
+
+| 提供商 | 注册地址 | 免费额度 |
+|--------|----------|----------|
+| **通义千问** | [阿里云百炼](https://bailian.console.aliyun.com) | 100万 Token |
+| **豆包** | [火山引擎](https://console.volcengine.com) | 50万 Token |
+| **Kimi** | [Moonshot AI](https://platform.moonshot.cn) | 15元额度 |
+| **文心一言** | [百度千帆](https://qianfan.baidu.com) | 有免费额度 |
+
+### 隐私说明
+
+- **你的 API Key 只保存在本地**，不会上传到任何服务器
+- 代码开源，可审计 `resources/config.js` 和 `pet.js`
+- 建议不要将包含个人 API Key 的版本上传到公共仓库
 
 ## 项目结构
 
